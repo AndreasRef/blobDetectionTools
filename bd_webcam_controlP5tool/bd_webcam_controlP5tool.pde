@@ -94,6 +94,7 @@ void drawBlobsAndEdges(boolean drawBlobs, boolean drawEdges)
   {
     println(theBlobDetection.getBlob(0).h*480);
 
+//Comment out the line(s) below?
 if ((theBlobDetection.getBlob(n).w*width + theBlobDetection.getBlob(n).h*480)>minimumBlobSize) {
     b=theBlobDetection.getBlob(n);
 

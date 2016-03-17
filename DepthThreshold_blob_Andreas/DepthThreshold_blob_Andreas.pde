@@ -1,4 +1,4 @@
-//A tool that combines Kinect depth image and blob detection, and lets you adjust settings with controlP5. 
+//A tool that combines Kinect depth image and blob detection and lets you adjust settings with controlP5. 
 
 //ORIGINAL EXAMPLES: 
 //1) bd_webcam example --- Blob Detection Library --- http://www.v3ga.net/processing/BlobDetection/ 
@@ -15,9 +15,7 @@ Kinect kinect;
 // Depth image
 PImage depthImg;
 
-// Which pixels do we care about?
-int minDepth =  60;
-int maxDepth = 914;
+
 
 // What is the kinect's angle
 float angle;
@@ -28,6 +26,10 @@ PImage img;
 boolean newFrame=false;
 
 //ControlP5
+// Which pixels do we care about?
+int minDepth =  60;
+int maxDepth = 914;
+
 int programHeight = 480;
 boolean positiveNegative = true;
 boolean showBlobs = true;
@@ -38,7 +40,7 @@ float minimumBlobSize = 100;
 int blurFactor = 30;
 
 void setup() {
-  size(1280, 640); // Originally 1280 - main program runs1280640x480 and the extra height is for controlP5 interface
+  size(1280, 640); // Originally 1280 - main program runs 1280x480. The extra height is for controlP5 interface.
 
   kinect = new Kinect(this);
   kinect.initDepth();
@@ -48,11 +50,11 @@ void setup() {
   depthImg = new PImage(kinect.width, kinect.height);
 
   // BlobDetection
-  // img which will be sent to detection (a smaller copy of the cam frame);
-  img = new PImage(80*6, 60*6); 
+  // img which will be sent to detection (a smaller copy of the cam frame will propably be faster, but less accurate);
+  img = new PImage(80*8, 60*8); 
   theBlobDetection = new BlobDetection(img.width, img.height);
   theBlobDetection.setPosDiscrimination(true);
-  theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > 0.2f;
+  theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > luminosityThreshold (reverse if setPosDiscrimination(false);
 
   int sliderHeight = 20;
   int sliderWidth = 150;
@@ -60,22 +62,23 @@ void setup() {
 
   //ControlP5
   cp5 = new ControlP5(this);
-  cp5.addToggle("showInformation").setPosition(45, programHeight +10).setSize(50, 20);
+  cp5.addToggle("showInformation").setPosition(45, programHeight +10).setSize(50, 20).listen(true);
   cp5.getController("showInformation").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addToggle("showBlobs").setPosition(130, programHeight +10).setSize(50, 20);
+  cp5.addToggle("showBlobs").setPosition(130, programHeight +10).setSize(50, 20).listen(true);
   cp5.getController("showBlobs").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addToggle("showEdges").setPosition(215, programHeight +10).setSize(50, 20);
+  cp5.addToggle("showEdges").setPosition(215, programHeight +10).setSize(50, 20).listen(true);
   cp5.getController("showEdges").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("luminosityThreshold", 0.0, 1.0, 150 + xOffset, programHeight + 10, sliderWidth, sliderHeight);
+  cp5.addSlider("luminosityThreshold", 0.0, 1.0, 150 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("luminosityThreshold").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("minimumBlobSize", 0, 250, 350 + xOffset, programHeight + 10, sliderWidth, sliderHeight);
+  cp5.addSlider("minimumBlobSize", 0, 250, 350 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("minimumBlobSize").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("blurFactor", 0, 50, 550 + xOffset, programHeight + 10, sliderWidth, sliderHeight);
+  cp5.addSlider("blurFactor", 0, 50, 550 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("blurFactor").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("minDepth", 0, 1000, 750 + xOffset, programHeight + 10, sliderWidth, sliderHeight);
+  cp5.addSlider("minDepth", 0, 1000, 750 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("minDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight);
+  cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("maxDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addBang("reset", width -50, height-50, 20, 20);
 }
 
 void draw() {
@@ -96,8 +99,7 @@ void draw() {
     }
   }
 
-  img.copy(depthImg, 0, 0, depthImg.width, depthImg.height, 
-    0, 0, img.width, img.height);
+  img.copy(depthImg, 0, 0, depthImg.width, depthImg.height, 0, 0, img.width, img.height);
   fastblur(img, blurFactor);
   theBlobDetection.computeBlobs(img.pixels);
   drawBlobsAndEdges(showBlobs, showEdges, showInformation);
@@ -105,14 +107,10 @@ void draw() {
   theBlobDetection.activeCustomFilter(this);
 
   pushStyle();
-  //noStroke();
-  //fill(0);
-  //rect(0, programHeight, width, height-programHeight);
   fill(255);
   textSize(24);
   textAlign(LEFT);
   text("BLOBS:" + theBlobDetection.getBlobNb(), 10, height- 30);
-
   popStyle();
 
 
@@ -124,29 +122,6 @@ void draw() {
   text("TILT: " + angle, 10, 20);
   text("THRESHOLD: [" + minDepth + ", " + maxDepth + "]", 10, 36);
 }
-
-// Adjust the angle and the depth threshold min and max
-void keyPressed() {
-  if (key == CODED) {
-    //if (keyCode == UP) { //Doesn't work with my sensor...
-    //  angle++;
-    //} else if (keyCode == DOWN) {
-    //  angle--;
-    //}
-    //angle = constrain(angle, 0, 30);
-    //kinect.setTilt(angle);
-  } else if (key == 'a') {
-    minDepth = constrain(minDepth+10, 0, maxDepth);
-  } else if (key == 's') {
-    minDepth = constrain(minDepth-10, 0, maxDepth);
-  } else if (key == 'z') {
-    maxDepth = constrain(maxDepth+10, minDepth, 2047);
-  } else if (key =='x') {
-    maxDepth = constrain(maxDepth-10, minDepth, 2047);
-  }
-}
-
-
 
 // ==================================================
 // drawBlobsAndEdges()
@@ -299,4 +274,18 @@ void fastblur(PImage img, int radius)
       yi+=w;
     }
   }
+}
+
+
+public void reset() {
+  minDepth =  60;
+  maxDepth = 914;
+  positiveNegative = true;
+  showBlobs = true;
+  showEdges = true;
+  showInformation = true;
+  luminosityThreshold = 0.5;
+  minimumBlobSize = 100;
+  blurFactor = 30;
+  println("reset settings");
 }
