@@ -6,8 +6,6 @@
 
 // Also see https://github.com/bgcallam/Cloud-Attractor for inspiration
 
-//Test comment laptop to test Github sync
-
 import processing.video.*;
 import blobDetection.*;
 import controlP5.*;
