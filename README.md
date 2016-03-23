@@ -6,7 +6,6 @@ http://www.v3ga.net/processing/BlobDetection/index-page-documentation.html
 
 
 ![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/ScreenShot.jpg "Image")
-
 Webcam image
 
 ![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/DepthThreshold_blob_Andreas/Blob%20Tracking.JPG  "Image")
