@@ -1,5 +1,5 @@
 //A tool that combines Kinect depth image and blob detection and lets you adjust settings with controlP5. 
-//This sketch also divides the floor into a grid and detects where the blobs are + turns them on an off
+//This sketch also divides the floor into a grid and detects where the blobs are + turns them on and off
 
 //ORIGINAL EXAMPLES: 
 //1) bd_webcam example --- Blob Detection Library --- http://www.v3ga.net/processing/BlobDetection/ 
@@ -89,9 +89,6 @@ void setup() {
 
 
   //Buttons
-
-  //control = new PVector();
-
   float w = 640/horizontalSteps;
   float h = 480/verticalSteps;
 
@@ -108,23 +105,11 @@ void setup() {
 }
 
 void draw() {
-  // Draw the raw image
-  //image(kinect.getDepthImage(), 0, 0);
+  //image(kinect.getDepthImage(), 0, 0);   // Draw the raw image
 
-  //Draw background rect
   noStroke();
   fill(0);
-  rect(0, 0, width, height);
-
-
-  //Define controlVector
-  //control.x = mouseX;
-  //control.y = mouseY;
-
-  if (theBlobDetection.getBlobNb() > 0) {
-    //control.x = theBlobDetection.getBlob(0).xMin*width/2 + theBlobDetection.getBlob(0).w*width/4;
-    //control.y = theBlobDetection.getBlob(0).yMin*programHeight + theBlobDetection.getBlob(0).h*programHeight/2;
-  }
+  rect(0, 0, width, height);  //Draw background rect
 
   // Threshold the depth image
   int[] rawDepth = kinect.getRawDepth();
