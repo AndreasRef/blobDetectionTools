@@ -1,9 +1,12 @@
 //A tool that combines Kinect depth image and blob detection and lets you adjust settings with controlP5. //<>//
 //This sketch also divides the screen/floor into a grid and detects where the blobs are + turns them on and off over time (if autoPress == true)
 //Additionally this sketch works with two Kinects at the same time, where their depthimages become one PGraphics
-//Note that this sketch mirrors the Kinect images. This is not (yet) implemented in most of the other sketches in this repository...
+//Note that this sketch mirrors the Kinect images. 
 
-//Small issue not fixed: Sometimes a big object (a body close by) tracks as two blobs instead of one... 
+// Blob tracking doesn't work that well when you are too close to the Kinects:
+// It sees people/objects that cover the full height as two different blobs
+
+//Update: Added a lot more ControlP5 GUI
 
 import org.openkinect.freenect.*;
 import org.openkinect.processing.*;
@@ -16,9 +19,6 @@ ArrayList<Kinect> multiKinect;
 
 int numDevices = 0;
 
-//index to change the current device changes
-int deviceIndex = 0;
-
 PGraphics pg;
 
 //DepthThreshold
@@ -29,23 +29,26 @@ BlobDetection theBlobDetection;
 PImage img;
 boolean newFrame=false;
 
+int programHeight = 480; 
+
 //ControlP5
-// Which pixels do we care about?
 int minDepth =  60;
 int maxDepth = 914;
 
-int programHeight = 480; 
-
-//int programHeight = 480;
 boolean positiveNegative = true;
 boolean showBlobs = false;
 boolean showEdges = true;
 boolean showInformation = false;
-boolean mirrorKinects = true;
-float luminosityThreshold = 0.5;
+float luminosityThreshold = 0.7;
 float minimumBlobSize = 100;
 int blurFactor = 10;
+boolean mirrorKinects = true;
+boolean tiltKinects = false;
+int tiltKinect0 = 10;
+int tiltKinect1 = 10;
 
+Slider2D kinect0Align;
+Slider2D kinect1Align;
 
 //Buttons
 int horizontalSteps = 8;
@@ -55,16 +58,13 @@ Button[] buttons;
 boolean displayNumbers = true;
 boolean autoPress = false;
 
-
 void setup() {
   size(1280, 640);
   pg = createGraphics(1280, 480); 
 
-  //get the actual number of devices before creating them
   numDevices = Kinect.countDevices();
   println("number of Kinect v1 devices  "+numDevices);
 
-  //creat the arraylist
   multiKinect = new ArrayList<Kinect>();
 
   //iterate though all the devices and activate them
@@ -79,7 +79,7 @@ void setup() {
 
   // BlobDetection
   // img which will be sent to detection 
-  img = new PImage(1280/4, 480/4); //a smaller copy of the frame is faster, but less accurate . Between 2 and 4 is normally fine
+  img = new PImage(1280/4, 480/4); //a smaller copy of the frame is faster, but less accurate. Between 2 and 4 is normally fine
   theBlobDetection = new BlobDetection(img.width, img.height);
   theBlobDetection.setPosDiscrimination(true);
   theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > luminosityThreshold (reverse if setPosDiscrimination(false);
@@ -106,10 +106,18 @@ void setup() {
   cp5.getController("minDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
   cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("maxDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+
+  cp5.addSlider("tiltKinect0", 0, 30, width/2, height-75, sliderWidth, sliderHeight).setValue(tiltKinect0).listen(true);
+  cp5.addSlider("tiltKinect1", 0, 30, width/2, height-35, sliderWidth, sliderHeight).setValue(tiltKinect1).listen(true);
+  cp5.addToggle("tiltKinects").setPosition(width/2 -75, height-65).setSize(50, 40).listen(true);
+  
+  cp5.addToggle("autoPress").setPosition(450, height-50).setSize(50, 20).listen(true);
   
   cp5.addToggle("mirrorKinects").setPosition(width -150, height-50).setSize(50, 20).listen(true);
-  cp5.addBang("reset", width -50, height-50, 20, 20);
+  cp5.addBang("reset").setPosition(width -50, height-50).setSize(20, 20);
 
+  kinect0Align = cp5.addSlider2D("kinect0Align").setPosition(215, height - 100).setSize(75, 75).setMinMax(-20, -20, 20, 20).setValue(0, 0);
+  kinect1Align = cp5.addSlider2D("kinect1Align").setPosition(315, height - 100).setSize(75, 75).setMinMax(-20, -20, 20, 20).setValue(0, 0);
 
   //Buttons
   float w = 1280/horizontalSteps;
@@ -134,9 +142,8 @@ void draw() {
   pg.beginDraw();
   for (int i  = 0; i < multiKinect.size(); i++) {
     //Kinect tmpKinect = (Kinect)multiKinect.get(i);
-    
     multiKinect.get(i).enableMirror(mirrorKinects);
-    
+
     //Threshold 
     int[] rawDepth = multiKinect.get(i).getRawDepth();
     for (int j=0; j < rawDepth.length; j++) {
@@ -147,7 +154,16 @@ void draw() {
       }
     }
     depthImg.updatePixels();
-    pg.image(depthImg, 640*i, 0);
+
+    //Small hack for removing strange black bars in the left side of the depth images (might not be necessary for other setups)...
+    int cropAmount = 9;
+    PImage croppedDepthImage = depthImg.get(cropAmount, 0, depthImg.width-cropAmount, depthImg.height);
+    if (i==0) {
+    pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect0Align.getArrayValue()[0], 0+kinect0Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left 
+    } else if (i==1) {
+    pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect1Align.getArrayValue()[0], 0+kinect1Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
+    }
+    //pg.image(depthImg, 640*i, 0); //Full image without crop
   }
   pg.endDraw();
 
@@ -164,21 +180,21 @@ void draw() {
   //Buttons
   pushStyle();
   for (Button button : buttons) {
-   button.over=false;
-   Blob b;
-   //EdgeVertex eA, eB;
-   for (int n=0; n<theBlobDetection.getBlobNb(); n++)
-   {
-     b=theBlobDetection.getBlob(n);
+    button.over=false;
+    Blob b;
+    //EdgeVertex eA, eB;
+    for (int n=0; n<theBlobDetection.getBlobNb(); n++)
+    {
+      b=theBlobDetection.getBlob(n);
 
-     button.update(b.xMin*width/1 + b.w*width/2, b.yMin*programHeight + b.h*programHeight/2);
-   }
-   if (autoPress) button.autoPress();
-   button.display();
-   if (displayNumbers) button.displayNumbers();
+      button.update(b.xMin*width/1 + b.w*width/2, b.yMin*programHeight + b.h*programHeight/2);
+    }
+    if (autoPress) button.autoPress();
+    button.display();
+    if (displayNumbers) button.displayNumbers();
   }
   popStyle();
-  
+
   pushStyle();
   fill(255);
   textSize(24);
@@ -187,7 +203,11 @@ void draw() {
   textSize(16);
   text("Framerate: " + frameRate, 10, height- 20);
   popStyle();
-  
+
+  if (tiltKinects) {
+  multiKinect.get(0).setTilt(tiltKinect0);
+  multiKinect.get(1).setTilt(tiltKinect1);
+  }
 }
 
 // ==================================================
@@ -234,6 +254,10 @@ void drawBlobsAndEdges(boolean drawBlobs, boolean drawEdges, boolean blobInforma
       //Information (Calculate and display the center of each blob)
       if (blobInformation) {
         pushStyle();
+        ellipseMode(CENTER);
+        fill(0,255,0);
+        ellipse(b.xMin*width/1 + b.w*width/2, b.yMin*480 + b.h*480/2, 25, 25);
+        
         textSize(12);
         textAlign(CENTER, CENTER);
         fill(255);
@@ -343,7 +367,6 @@ void fastblur(PImage img, int radius)
   }
 }
 
-
 public void reset() {
   minDepth =  60;
   maxDepth = 914;
@@ -351,8 +374,16 @@ public void reset() {
   showBlobs = true;
   showEdges = true;
   showInformation = true;
-  luminosityThreshold = 0.5;
+  luminosityThreshold = 0.7;
   minimumBlobSize = 100;
   blurFactor = 10;
   println("reset settings");
+  clearSeq();
+}
+
+void clearSeq() {
+  for (Button button : buttons) {
+    button.state = 0;
+    button.pressed = false;
+  }
 }

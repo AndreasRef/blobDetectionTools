@@ -1,6 +1,10 @@
-//A tool that combines two(!) Kinect depth image and blob detection and lets you adjust settings with controlP5. //<>//
+//A tool that combines two(!) Kinect depth image and blob detection and lets you adjust settings with controlP5. //<>// //<>//
 
-import org.openkinect.freenect.*; //<>//
+// Blob tracking doesn't work that well when you are too close to the Kinects:
+// It sees people/objects that go full out the entire height as two different blobs
+
+
+import org.openkinect.freenect.*;
 import org.openkinect.processing.*;
 
 import blobDetection.*;
@@ -17,10 +21,8 @@ int deviceIndex = 0;
 PGraphics pg;
 
 //DepthThreshold
-// Depth image
-PImage depthImg;
+PImage depthImg; // Depth image
 
-//Blob
 //Blob
 BlobDetection theBlobDetection;
 PImage img;
@@ -32,20 +34,20 @@ boolean newFrame=false;
 int minDepth =  60;
 int maxDepth = 914;
 
-int programHeight = 360; //Not true, change this
+int programHeight = 480; //Height of the main program (= height of Kinect Depth Image)
 
-//int programHeight = 480;
 boolean positiveNegative = true;
 boolean showBlobs = true;
 boolean showEdges = true;
 boolean showInformation = true;
-float luminosityThreshold = 0.5;
+boolean mirrorKinects = true;
+float luminosityThreshold = 0.7;
 float minimumBlobSize = 100;
 int blurFactor = 30;
 
 void setup() {
-  size(1280, 480);
-    pg = createGraphics(1280, 480); 
+  size(1280, 640);
+  pg = createGraphics(1280, 480); 
 
   //get the actual number of devices before creating them
   numDevices = Kinect.countDevices();
@@ -57,15 +59,16 @@ void setup() {
   //iterate though all the devices and activate them
   for (int i  = 0; i < numDevices; i++) {
     Kinect tmpKinect = new Kinect(this);
+    tmpKinect.enableMirror(mirrorKinects);
     tmpKinect.activateDevice(i);
     tmpKinect.initDepth();
     multiKinect.add(tmpKinect);
   }
   depthImg = new PImage(640, 480);
-  
+
   // BlobDetection
   // img which will be sent to detection (a smaller copy of the cam frame will propably be faster, but less accurate);
-  img = new PImage(1280, 480); 
+  img = new PImage(1280/2, 480/2); 
   theBlobDetection = new BlobDetection(img.width, img.height);
   theBlobDetection.setPosDiscrimination(true);
   theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > luminosityThreshold (reverse if setPosDiscrimination(false);
@@ -92,7 +95,8 @@ void setup() {
   cp5.getController("minDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
   cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
   cp5.getController("maxDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addBang("reset", width -50, height-50, 20, 20);
+  cp5.addToggle("mirrorKinects").setPosition(width -150, height-50).setSize(50, 20).listen(true); 
+  cp5.addBang("reset").setPosition(width -50, height-50).setSize(20, 20);
 }
 
 
@@ -102,6 +106,9 @@ void draw() {
   pg.beginDraw();
   for (int i  = 0; i < multiKinect.size(); i++) {
     //Kinect tmpKinect = (Kinect)multiKinect.get(i);
+
+    multiKinect.get(i).enableMirror(mirrorKinects);
+
     //Threshold 
     int[] rawDepth = multiKinect.get(i).getRawDepth();
     for (int j=0; j < rawDepth.length; j++) {
@@ -112,13 +119,18 @@ void draw() {
       }
     }
     depthImg.updatePixels();
-      pg.image(depthImg, 640*i, 0); 
+
+    //Small hack for removing strange black bars in the left side of the depth images (might not be necessary for other setups)...
+    int cropAmount = 9;
+    PImage croppedDepthImage = depthImg.get(cropAmount,0,depthImg.width-cropAmount,depthImg.height);
+    pg.image(croppedDepthImage,croppedDepthImage.width*i, 0, croppedDepthImage.width,480); //Be aware that this results in some empty (black) pixels all the way to the left 
+    
+    //pg.image(depthImg, 640*i, 0); //Full image without crop
   }
   pg.endDraw();
-  
+
   image(pg, 0, 0);
-  
-  
+
   img.copy(pg, 0, 0, pg.width, pg.height, 0, 0, img.width, img.height);
   fastblur(img, blurFactor);
   theBlobDetection.computeBlobs(img.pixels);
@@ -126,6 +138,14 @@ void draw() {
   theBlobDetection.setThreshold(luminosityThreshold); 
   theBlobDetection.activeCustomFilter(this);
   
+  pushStyle();
+  fill(255);
+  textSize(24);
+  textAlign(LEFT);
+  text("BLOBS: " + theBlobDetection.getBlobNb(), 10, height- 50);
+  textSize(16);
+  text("Framerate: " + frameRate, 10, height- 20);
+  popStyle();
 }
 
 // ==================================================
@@ -172,9 +192,9 @@ void drawBlobsAndEdges(boolean drawBlobs, boolean drawEdges, boolean blobInforma
       //Information (Calculate and display the center of each blob)
       if (blobInformation) {
         pushStyle();
-        textSize(12);
+        textSize(24);
         textAlign(CENTER, CENTER);
-        fill(255);
+        fill(255, 0, 0);
         text("#" + n + "\n (" + round(b.xMin*width/1 + b.w*width/2) +"," + round(b.yMin*480 + b.h*480/2) + ")", b.xMin*width/1 + b.w*width/2, b.yMin*480 + b.h*480/2);
         popStyle();
       }
@@ -289,7 +309,7 @@ public void reset() {
   showBlobs = true;
   showEdges = true;
   showInformation = true;
-  luminosityThreshold = 0.5;
+  luminosityThreshold = 0.7;
   minimumBlobSize = 100;
   blurFactor = 30;
   println("reset settings");
