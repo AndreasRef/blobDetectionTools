@@ -10,12 +10,12 @@ http://www.v3ga.net/processing/BlobDetection/index-page-documentation.html
 Webcam image
 
 
-![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/DepthThreshold_blob_Andreas/Blob%20Tracking.JPG  "Image")
+![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/DepthThresholdBlob/Blob%20Tracking.JPG  "Image")
 
 One Kinect placed looking down frome above
 
 
-![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/MultiKinectDepthThresholdBlob_Simplest/MultipleKinectDepthThresholdBlob.jpg "Image")
+![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/MultiKinectDepthThresholdBlob/MultipleKinectDepthThresholdBlob.jpg "Image")
 
 Two Kinects as one PGraphics
 
