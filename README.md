@@ -24,3 +24,7 @@ Two Kinects as one PGraphics
 
 Two Kinects in grid that reacts to blobs
 
+
+![alt text](https://github.com/AndreasRef/blobDetectionTools/blob/master/MultiKinectOneImageThreeModes/MultiKinect.png "Image")
+
+Multikinect video image, depth image and thresholded depth image
