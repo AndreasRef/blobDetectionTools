@@ -1,0 +1,59 @@
+{
+  "/minDepth": {
+    "min": 0,
+    "max": 1000,
+    "value": 60
+  },
+  "/blurFactor": {
+    "min": 0,
+    "max": 50,
+    "value": 10
+  },
+  "/verticalSteps": {
+    "min": 0,
+    "max": 10,
+    "value": 3
+  },
+  "/showBlobs": {"value": 0},
+  "/autoPress": {"value": 0},
+  "/kinect0Align": {
+    "minY": -20,
+    "minX": -20,
+    "maxY": 20,
+    "maxX": 20,
+    "arrayValue": "[F@54ee995f"
+  },
+  "/mirror": {"value": 1},
+  "/rgbView": {"value": 0},
+  "/maxDepth": {
+    "min": 0,
+    "max": 1000,
+    "value": 914
+  },
+  "/minimumBlobSize": {
+    "min": 0,
+    "max": 250,
+    "value": 100
+  },
+  "/horizontalSteps": {
+    "min": 0,
+    "max": 10,
+    "value": 8
+  },
+  "/showInformation": {"value": 0},
+  "/mouseControl": {"value": 1},
+  "/showButtons": {"value": 1},
+  "/showEdges": {"value": 1},
+  "/luminosityThreshold": {
+    "min": 0,
+    "max": 1,
+    "value": 0.699999988079071
+  },
+  "/kinect1Align": {
+    "minY": -20,
+    "minX": -20,
+    "maxY": 20,
+    "maxX": 20,
+    "arrayValue": "[F@11f1c116"
+  }
+}

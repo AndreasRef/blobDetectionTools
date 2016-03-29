@@ -6,7 +6,9 @@
 // Blob tracking doesn't work that well when you are too close to the Kinects:
 // It sees people/objects that cover the full height as two different blobs
 
-//Update: Added a lot more ControlP5 GUI
+//Update 24/3: Added a lot more ControlP5 GUI
+
+//Update 29/3: Resizeable number of buttons + GUI cleanup + load and save properties (buggy...) + RGB view 
 
 import org.openkinect.freenect.*;
 import org.openkinect.processing.*;
@@ -42,10 +44,10 @@ boolean showInformation = false;
 float luminosityThreshold = 0.7;
 float minimumBlobSize = 100;
 int blurFactor = 10;
-boolean mirrorKinects = true;
-boolean tiltKinects = false;
-int tiltKinect0 = 10;
-int tiltKinect1 = 10;
+boolean mirror = true;
+boolean rgbView = false;
+
+int cropAmount = 9;
 
 Slider2D kinect0Align;
 Slider2D kinect1Align;
@@ -57,6 +59,8 @@ int count;
 Button[] buttons;
 boolean displayNumbers = true;
 boolean autoPress = false;
+boolean mouseControl = true;
+boolean showButtons = true;
 
 void setup() {
   size(1280, 640);
@@ -70,9 +74,10 @@ void setup() {
   //iterate though all the devices and activate them
   for (int i  = 0; i < numDevices; i++) {
     Kinect tmpKinect = new Kinect(this);
-    tmpKinect.enableMirror(mirrorKinects);
+    tmpKinect.enableMirror(mirror);
     tmpKinect.activateDevice(i);
     tmpKinect.initDepth();
+    tmpKinect.initVideo();
     multiKinect.add(tmpKinect);
   }
   depthImg = new PImage(640, 480);
@@ -84,65 +89,95 @@ void setup() {
   theBlobDetection.setPosDiscrimination(true);
   theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > luminosityThreshold (reverse if setPosDiscrimination(false);
 
-  int sliderHeight = 20;
-  int sliderWidth = 150;
-  int xOffset = 150;
-
   //ControlP5
   cp5 = new ControlP5(this);
-  cp5.addToggle("showInformation").setPosition(45, programHeight +10).setSize(50, 20).listen(true);
-  cp5.getController("showInformation").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addToggle("showBlobs").setPosition(130, programHeight +10).setSize(50, 20).listen(true);
-  cp5.getController("showBlobs").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addToggle("showEdges").setPosition(215, programHeight +10).setSize(50, 20).listen(true);
-  cp5.getController("showEdges").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("luminosityThreshold", 0.0, 1.0, 150 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
-  cp5.getController("luminosityThreshold").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("minimumBlobSize", 0, 250, 350 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
-  cp5.getController("minimumBlobSize").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("blurFactor", 0, 50, 550 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
-  cp5.getController("blurFactor").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("minDepth", 0, 1000, 750 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
-  cp5.getController("minDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
-  cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
-  cp5.getController("maxDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  //cp5.getProperties().setFormat(ControlP5.SERIALIZED);
 
-  cp5.addSlider("tiltKinect0", 0, 30, width/2, height-75, sliderWidth, sliderHeight).setValue(tiltKinect0).listen(true);
-  cp5.addSlider("tiltKinect1", 0, 30, width/2, height-35, sliderWidth, sliderHeight).setValue(tiltKinect1).listen(true);
-  cp5.addToggle("tiltKinects").setPosition(width/2 -75, height-65).setSize(50, 40).listen(true);
+  //Shared dimensions
+  int toogleWidth = 50;
+  int toogleHeight = 20;
+  int sliderHeight = 10;
+  int sliderWidth = 150;
+  int xOffset = 2;
+  int yOffset = 20;
+
+  //Blob GUI
+  Group BlobControls = cp5.addGroup("BlobControls")
+    .setPosition(0 + xOffset, programHeight + yOffset)
+    .setSize(width/4 - xOffset*2, height-programHeight-yOffset)
+    .setBackgroundColor(color(255, 50))
+    ;
+
+  cp5.addToggle("showInformation").setPosition(10, 10).setSize(toogleWidth, toogleHeight).setGroup(BlobControls).listen(true);
+  cp5.addToggle("showBlobs").setPosition(10, 50).setSize(toogleWidth, toogleHeight).setGroup(BlobControls).listen(true);
+  cp5.addToggle("showEdges").setPosition(10, 90).setSize(toogleWidth, toogleHeight).setGroup(BlobControls).listen(true);
+  cp5.addSlider("luminosityThreshold", 0.0, 1.0).setPosition(150, 10).setSize(sliderWidth, sliderHeight).setGroup(BlobControls).listen(true);
+  cp5.getController("luminosityThreshold").getCaptionLabel().align(ControlP5.LEFT, ControlP5.BOTTOM_OUTSIDE).setPaddingY(5);
+  cp5.addSlider("minimumBlobSize", 0, 250).setPosition(150, 45).setSize(sliderWidth, sliderHeight).setGroup(BlobControls).listen(true);
+  cp5.getController("minimumBlobSize").getCaptionLabel().align(ControlP5.LEFT, ControlP5.BOTTOM_OUTSIDE).setPaddingY(5);
+  cp5.addSlider("blurFactor", 0, 50).setPosition(150, 80).setSize(sliderWidth, sliderHeight).setGroup(BlobControls).listen(true);
+  cp5.getController("blurFactor").getCaptionLabel().align(ControlP5.LEFT, ControlP5.BOTTOM_OUTSIDE).setPaddingY(5);
+
+  //Kinect GUI
+  Group KinectControls = cp5.addGroup("KinectControls")
+    .setPosition(width/4 + xOffset, programHeight + yOffset)
+    .setSize(width/4 - xOffset*2, height-programHeight-yOffset )
+    .setBackgroundColor(color(255, 50))
+    ;
+
+  cp5.addSlider("minDepth", 0, 1000, 10, 10, sliderWidth-25, sliderHeight).setGroup(KinectControls).listen(true);
+  cp5.addSlider("maxDepth", 0, 1000, 10, 30, sliderWidth-25, sliderHeight).setGroup(KinectControls).listen(true);
+  cp5.addSlider("cropAmount", 0,130,  190, 60, sliderWidth-75, sliderHeight).setGroup(KinectControls).listen(true);
   
-  cp5.addToggle("autoPress").setPosition(450, height-50).setSize(50, 20).listen(true);
-  
-  cp5.addToggle("mirrorKinects").setPosition(width -150, height-50).setSize(50, 20).listen(true);
+  cp5.addToggle("mirror").setPosition(190, 10).setSize(toogleWidth, toogleHeight).setGroup(KinectControls).listen(true);
+  cp5.addToggle("rgbView").setPosition(250, 10).setSize(toogleWidth, toogleHeight).setGroup(KinectControls).listen(true);
+  kinect0Align = cp5.addSlider2D("kinect0Align").setPosition(10, 50).setSize(75, 75).setMinMax(-50, -50, 50, 50).setValue(0, 0).setGroup(KinectControls);
+  kinect1Align = cp5.addSlider2D("kinect1Align").setPosition(100, 50).setSize(75, 75).setMinMax(-50, -50, 50, 50).setValue(0, 0).setGroup(KinectControls);
+
+
+  //Buttons GUI
+  Group ButtonControls = cp5.addGroup("ButtonControls")
+    .setPosition(2*width/4 + xOffset, programHeight + yOffset)
+    .setSize(width/4 - xOffset*2 - 100, height-programHeight-yOffset )
+    .setBackgroundColor(color(255, 50))
+    ;
+
+
+  cp5.addToggle("autoPress").setPosition(10, 10).setSize(toogleWidth, toogleHeight).setGroup(ButtonControls).listen(true);
+  cp5.addToggle("mouseControl").setPosition(10, 50).setSize(toogleWidth, toogleHeight).setGroup(ButtonControls).listen(true);
+  cp5.addToggle("showButtons").setPosition(10, 90).setSize(toogleWidth, toogleHeight).setGroup(ButtonControls).listen(true);
+  cp5.addSlider("horizontalSteps", 0, 10).setPosition(100, 10).setGroup(ButtonControls);
+  cp5.getController("horizontalSteps").getCaptionLabel().align(ControlP5.LEFT, ControlP5.BOTTOM_OUTSIDE).setPaddingY(5);
+  cp5.addSlider("verticalSteps", 0, 10).setPosition(100, 45).setGroup(ButtonControls);
+  cp5.getController("verticalSteps").getCaptionLabel().align(ControlP5.LEFT, ControlP5.BOTTOM_OUTSIDE).setPaddingY(5);
+
+  //Settings GUI
+  Group SettingsControls = cp5.addGroup("SettingsControls")
+    .setPosition(3*width/4 + xOffset - 100, programHeight + yOffset)
+    .setSize(width/4 - xOffset*2 - 200, height-programHeight-yOffset )
+    .setBackgroundColor(color(255, 50))
+    ;
+
+  cp5.addButton("b3", 10, 10, 10, 80, 12).setCaptionLabel("save default").setGroup(SettingsControls);
+  cp5.addButton("b4", 10, 10, 40, 80, 12).setCaptionLabel("load default").setGroup(SettingsControls).setColorBackground(color(0, 100, 50));
+
   cp5.addBang("reset").setPosition(width -50, height-50).setSize(20, 20);
 
-  kinect0Align = cp5.addSlider2D("kinect0Align").setPosition(215, height - 100).setSize(75, 75).setMinMax(-20, -20, 20, 20).setValue(0, 0);
-  kinect1Align = cp5.addSlider2D("kinect1Align").setPosition(315, height - 100).setSize(75, 75).setMinMax(-20, -20, 20, 20).setValue(0, 0);
+  //FrameRate
+  cp5.addFrameRate().setInterval(10).setPosition(width-20, height - 10);
 
-  //Buttons
-  float w = 1280/horizontalSteps;
-  float h = 480/verticalSteps;
-
-  count = horizontalSteps * verticalSteps;
-  buttons = new Button[count];
-
-  int index = 0;
-  for (int i = 0; i < horizontalSteps; i++) { 
-    for (int j = 0; j < verticalSteps; j++) {
-      // Inputs: row, column, x, y, w, h , base color, over color, press color
-      buttons[index++] = new Button(i, j, i*1280/horizontalSteps, j*480/verticalSteps, w, h, color(122), color(255), color(0));
-    }
-  }
+  setupButtons();
 }
-
 
 void draw() {
   background(0);
 
   pg.beginDraw();
+  pg.background(0);
   for (int i  = 0; i < multiKinect.size(); i++) {
     //Kinect tmpKinect = (Kinect)multiKinect.get(i);
-    multiKinect.get(i).enableMirror(mirrorKinects);
+    //image(tmpKinect.getVideoImage(), 640*i, 0);
+    multiKinect.get(i).enableMirror(mirror);
 
     //Threshold 
     int[] rawDepth = multiKinect.get(i).getRawDepth();
@@ -156,12 +191,12 @@ void draw() {
     depthImg.updatePixels();
 
     //Small hack for removing strange black bars in the left side of the depth images (might not be necessary for other setups)...
-    int cropAmount = 9;
+    //int cropAmount = 9;
     PImage croppedDepthImage = depthImg.get(cropAmount, 0, depthImg.width-cropAmount, depthImg.height);
     if (i==0) {
-    pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect0Align.getArrayValue()[0], 0+kinect0Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left 
+      pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect0Align.getArrayValue()[0], 0+kinect0Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
     } else if (i==1) {
-    pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect1Align.getArrayValue()[0], 0+kinect1Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
+      pg.image(croppedDepthImage, croppedDepthImage.width*i+kinect1Align.getArrayValue()[0], 0+kinect1Align.getArrayValue()[1], croppedDepthImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
     }
     //pg.image(depthImg, 640*i, 0); //Full image without crop
   }
@@ -177,37 +212,60 @@ void draw() {
   theBlobDetection.setThreshold(luminosityThreshold); 
   theBlobDetection.activeCustomFilter(this);
 
+  if (rgbView) {
+    for (int i  = 0; i < multiKinect.size(); i++) {
+      pushStyle();
+      tint(255, 150);
+      Kinect tmpKinect = (Kinect)multiKinect.get(i);
+
+      //int cropAmount = 9;
+      //PImage croppedRGBImage = tmpKinect.getVideoImage().get(cropAmount, 0, 640-cropAmount, 480);
+      //if (i==0) {
+      //  image(croppedRGBImage, croppedRGBImage.width*i+kinect0Align.getArrayValue()[0], 0+kinect0Align.getArrayValue()[1], croppedRGBImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
+      //} else if (i==1) {
+      //  image(croppedRGBImage, croppedRGBImage.width*i+kinect1Align.getArrayValue()[0], 0+kinect1Align.getArrayValue()[1], croppedRGBImage.width, 480); //Be aware that this results in some empty (black) pixels all the way to the left
+      //}
+
+
+      
+      //image(croppedRGBImage, 640*i, 0);
+      image(tmpKinect.getVideoImage(), 640*i, 0);
+      popStyle();
+    }
+  }  
+
   //Buttons
   pushStyle();
   for (Button button : buttons) {
     button.over=false;
-    Blob b;
-    //EdgeVertex eA, eB;
-    for (int n=0; n<theBlobDetection.getBlobNb(); n++)
-    {
-      b=theBlobDetection.getBlob(n);
 
-      button.update(b.xMin*width/1 + b.w*width/2, b.yMin*programHeight + b.h*programHeight/2);
+    if (mouseControl) {
+      button.update(mouseX, mouseY);
+    } else {
+
+      Blob b;
+      //EdgeVertex eA, eB;
+      for (int n=0; n<theBlobDetection.getBlobNb(); n++)
+      {
+        b=theBlobDetection.getBlob(n);
+
+        button.update(b.xMin*width/1 + b.w*width/2, b.yMin*programHeight + b.h*programHeight/2);
+      }
     }
     if (autoPress) button.autoPress();
-    button.display();
-    if (displayNumbers) button.displayNumbers();
+    if (showButtons) { 
+      button.display();
+      if (displayNumbers) button.displayNumbers();
+    }
   }
   popStyle();
 
   pushStyle();
   fill(255);
-  textSize(24);
-  textAlign(LEFT);
-  text("BLOBS: " + theBlobDetection.getBlobNb(), 10, height- 50);
   textSize(16);
-  text("Framerate: " + frameRate, 10, height- 20);
+  textAlign(LEFT);
+  text("BLOBS: " + theBlobDetection.getBlobNb(), 152, height-5);
   popStyle();
-
-  if (tiltKinects) {
-  multiKinect.get(0).setTilt(tiltKinect0);
-  multiKinect.get(1).setTilt(tiltKinect1);
-  }
 }
 
 // ==================================================
@@ -255,9 +313,9 @@ void drawBlobsAndEdges(boolean drawBlobs, boolean drawEdges, boolean blobInforma
       if (blobInformation) {
         pushStyle();
         ellipseMode(CENTER);
-        fill(0,255,0);
+        fill(0, 255, 0);
         ellipse(b.xMin*width/1 + b.w*width/2, b.yMin*480 + b.h*480/2, 25, 25);
-        
+
         textSize(12);
         textAlign(CENTER, CENTER);
         fill(255);
@@ -381,9 +439,40 @@ public void reset() {
   clearSeq();
 }
 
+
+void b3(float v) {
+  cp5.saveProperties("default", "default");
+}
+
+void b4(float v) {
+  cp5.loadProperties(("default.json"));
+}
+
+
 void clearSeq() {
   for (Button button : buttons) {
     button.state = 0;
     button.pressed = false;
+  }
+}
+
+void controlEvent(ControlEvent theEvent) {
+
+  if (theEvent.isFrom(cp5.getController("horizontalSteps")) || theEvent.isFrom(cp5.getController("verticalSteps"))) {
+    setupButtons();
+  }
+}
+
+void setupButtons () {
+
+  count = horizontalSteps * verticalSteps;
+  buttons = new Button[count];
+
+  int index = 0;
+  for (int i = 0; i < horizontalSteps; i++) { 
+    for (int j = 0; j < verticalSteps; j++) {
+      // Inputs: row, column, x, y, w, h , base color, over color, press color
+      buttons[index++] = new Button(i, j, i*1280/horizontalSteps, j*480/verticalSteps, 1280/horizontalSteps, 480/verticalSteps, color(122), color(255), color(0));
+    }
   }
 }

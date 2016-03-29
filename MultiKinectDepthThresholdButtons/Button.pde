@@ -7,9 +7,9 @@ class Button {
   color baseGray;           // Default gray value 
   color overGray;           // Value when mouse is over the button
   color pressGray;          // Value when mouse is over and pressed
-  boolean over = false;     // True when the mouse is over 
+  boolean over = false;     // True when the mouse/blob is over 
   boolean prevOver = false;
-  boolean pressed = false;  // True when the mouse is over and pressed
+  boolean pressed = false;  // True when the mouse/blob is over and pressed
   int state;
   long startTime = 0;
 
