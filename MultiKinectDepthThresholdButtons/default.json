@@ -7,7 +7,7 @@
   "/blurFactor": {
     "min": 0,
     "max": 50,
-    "value": 10
+    "value": 2.499999761581421
   },
   "/verticalSteps": {
     "min": 0,
@@ -15,45 +15,76 @@
     "value": 3
   },
   "/showBlobs": {"value": 0},
-  "/autoPress": {"value": 0},
-  "/kinect0Align": {
-    "minY": -20,
-    "minX": -20,
-    "maxY": 20,
-    "maxX": 20,
-    "arrayValue": "[F@54ee995f"
+  "/endY": {
+    "min": 240,
+    "max": 480,
+    "value": 480
   },
+  "/endX": {
+    "min": 640,
+    "max": 1280,
+    "value": 1189.494873046875
+  },
+  "/autoPress": {"value": 0},
   "/mirror": {"value": 1},
   "/rgbView": {"value": 0},
   "/maxDepth": {
     "min": 0,
     "max": 1000,
-    "value": 914
+    "value": 906.6666870117188
+  },
+  "/cropAmount": {
+    "min": 0,
+    "max": 130,
+    "value": 9
+  },
+  "/kinect0Y": {
+    "min": -100,
+    "max": 100,
+    "value": 100
+  },
+  "/kinect1Y": {
+    "min": -100,
+    "max": 100,
+    "value": 0
+  },
+  "/kinect0X": {
+    "min": -100,
+    "max": 100,
+    "value": 0
+  },
+  "/kinect1X": {
+    "min": -100,
+    "max": 100,
+    "value": 0
   },
   "/minimumBlobSize": {
     "min": 0,
     "max": 250,
     "value": 100
   },
+  "/startY": {
+    "min": 0,
+    "max": 240,
+    "value": 135.757568359375
+  },
   "/horizontalSteps": {
     "min": 0,
     "max": 10,
     "value": 8
   },
-  "/showInformation": {"value": 0},
-  "/mouseControl": {"value": 1},
+  "/showInformation": {"value": 1},
+  "/startX": {
+    "min": 0,
+    "max": 640,
+    "value": 77.57575988769531
+  },
+  "/mouseControl": {"value": 0},
   "/showButtons": {"value": 1},
-  "/showEdges": {"value": 1},
+  "/showEdges": {"value": 0},
   "/luminosityThreshold": {
     "min": 0,
     "max": 1,
     "value": 0.699999988079071
-  },
-  "/kinect1Align": {
-    "minY": -20,
-    "minX": -20,
-    "maxY": 20,
-    "maxX": 20,
-    "arrayValue": "[F@11f1c116"
   }
 }

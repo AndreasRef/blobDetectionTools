@@ -95,3 +95,20 @@ class Button {
     popStyle();
   }
 }
+
+
+//Not part of the class!!
+void setupButtons () {
+
+  count = horizontalSteps * verticalSteps;
+  buttons = new Button[count];
+
+  int index = 0;
+  for (int i = 0; i < horizontalSteps; i++) { 
+    for (int j = 0; j < verticalSteps; j++) {
+      // Inputs: row, column, x, y, w, h , base color, over color, press color
+      buttons[index++] = new Button(i, j, i*abs(startX-endX)/horizontalSteps + startX, j*abs(startY-endY)/verticalSteps + startY, abs(startX-endX)/horizontalSteps, abs(startY-endY)/verticalSteps, color(122), color(255), color(0));
+      //buttons[index++] = new Button(i, j, i*1280/horizontalSteps , j*480/verticalSteps, 1280/horizontalSteps, 480/verticalSteps, color(122), color(255), color(0));
+    }
+  }
+}
