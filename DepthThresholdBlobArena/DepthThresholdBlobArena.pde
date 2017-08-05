@@ -1,0 +1,501 @@
+//A tool that combines Kinect depth image and blob detection and lets you adjust settings with controlP5. 
+//Additionally it sends out the x positions of each of the blobs to resolume to control parameters.
+// 1st blob sends to effect 1, second blob to effect 2 etc
+
+//To do: Set up OSC communication to Resolume
+//SEE avenueOscBasic
+
+//ORIGINAL EXAMPLES: 
+//1) bd_webcam example --- Blob Detection Library --- http://www.v3ga.net/processing/BlobDetection/ 
+//2) Depth threshold example --- OpenKinect Library --- https://github.com/shiffman/OpenKinect-for-Processing  
+
+import org.openkinect.freenect.*;
+import org.openkinect.processing.*;
+import blobDetection.*;
+import controlP5.*;
+ControlP5 cp5;
+
+import oscP5.*;
+import netP5.*;
+
+int portToListenTo = 7001; 
+int portToSendTo = 7000;
+String ipAddressToSendTo = "localhost";
+
+boolean mouseDown = false;
+
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+OscBundle myBundle;
+OscMessage myMessage;
+OscMessage myMessage2;
+
+
+Kinect kinect;
+
+// Depth image
+PImage depthImg;
+
+// What is the kinect's angle
+float angle;
+
+//Blob
+BlobDetection theBlobDetection;
+PImage img;
+boolean newFrame=false;
+
+//ControlP5
+// Which pixels do we care about?
+int minDepth =  60;
+int maxDepth = 990;
+
+int programHeight = 480;
+boolean positiveNegative = true;
+boolean showBlobs = true;
+boolean showEdges = true;
+boolean showInformation = true;
+float luminosityThreshold = 0.5;
+float minimumBlobSize = 50;
+int blurFactor = 30;
+
+void setup() {
+  size(1280, 640); // Originally 1280 - main program runs 1280x480. The extra height is for controlP5 interface.
+
+  kinect = new Kinect(this);
+  kinect.initDepth();
+  angle = kinect.getTilt();
+
+  //
+  oscP5 = new OscP5(this,portToListenTo);
+  myRemoteLocation = new NetAddress(ipAddressToSendTo, portToSendTo);  
+  myBundle = new OscBundle();
+  myMessage = new OscMessage("/"); 
+  myMessage2 = new OscMessage("/"); 
+
+
+  // Blank image
+  depthImg = new PImage(kinect.width, kinect.height);
+
+  // BlobDetection
+  // img which will be sent to detection (a smaller copy of the cam frame will propably be faster, but less accurate);
+  img = new PImage(80*8, 60*8); 
+  theBlobDetection = new BlobDetection(img.width, img.height);
+  theBlobDetection.setPosDiscrimination(true);
+  theBlobDetection.setThreshold(luminosityThreshold); // will detect bright areas whose luminosity > luminosityThreshold (reverse if setPosDiscrimination(false);
+
+  int sliderHeight = 20;
+  int sliderWidth = 150;
+  int xOffset = 150;
+
+  //ControlP5
+  cp5 = new ControlP5(this);
+  cp5.addToggle("showInformation").setPosition(45, programHeight +10).setSize(50, 20).listen(true);
+  cp5.getController("showInformation").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addToggle("showBlobs").setPosition(130, programHeight +10).setSize(50, 20).listen(true);
+  cp5.getController("showBlobs").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addToggle("showEdges").setPosition(215, programHeight +10).setSize(50, 20).listen(true);
+  cp5.getController("showEdges").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addSlider("luminosityThreshold", 0.0, 1.0, 150 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
+  cp5.getController("luminosityThreshold").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addSlider("minimumBlobSize", 0, 300, 350 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
+  cp5.getController("minimumBlobSize").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addSlider("blurFactor", 0, 50, 550 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
+  cp5.getController("blurFactor").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addSlider("minDepth", 0, 1000, 750 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
+  cp5.getController("minDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addSlider("maxDepth", 0, 1000, 950 + xOffset, programHeight + 10, sliderWidth, sliderHeight).listen(true);
+  cp5.getController("maxDepth").getCaptionLabel().align(ControlP5.CENTER, ControlP5.BOTTOM_OUTSIDE).setPaddingY(10);
+  cp5.addBang("reset", width -50, height-50, 20, 20);
+}
+
+void draw() {
+  // Draw the raw image
+  //image(kinect.getDepthImage(), 0, 0);
+
+  //Draw background rect
+  noStroke();
+  rect(0, 0, width, height);
+
+  // Threshold the depth image
+  int[] rawDepth = kinect.getRawDepth();
+  for (int i=0; i < rawDepth.length; i++) {
+    if (rawDepth[i] >= minDepth && rawDepth[i] <= maxDepth) {
+      depthImg.pixels[i] = color(255);
+    } else {
+      depthImg.pixels[i] = color(0);
+    }
+  }
+
+  img.copy(depthImg, 0, 0, depthImg.width, depthImg.height, 0, 0, img.width, img.height);
+  fastblur(img, blurFactor);
+  theBlobDetection.computeBlobs(img.pixels);
+  drawBlobsAndEdges(showBlobs, showEdges, showInformation);
+  theBlobDetection.setThreshold(luminosityThreshold); 
+  theBlobDetection.activeCustomFilter(this);
+
+  pushStyle();
+  fill(255);
+  textSize(24);
+  textAlign(LEFT);
+  text("BLOBS:" + theBlobDetection.getBlobNb(), 10, height- 30);
+  popStyle();
+
+
+  // Draw the thresholded image
+  depthImg.updatePixels();
+  image(depthImg, kinect.width, 0);
+
+  fill(0);
+  text("TILT: " + angle, 10, 20);
+  text("THRESHOLD: [" + minDepth + ", " + maxDepth + "]", 10, 36);
+  
+  
+  
+  
+  
+  //send 0 if there are no blobs
+  
+ if (theBlobDetection.getBlobNb() == 0) {
+   
+   //println("noBlobs");
+   
+   boolean send = false;
+   myMessage.setAddrPattern("/layer1/clip1/video/rotatey/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    myMessage.setAddrPattern("/composition/video/effect3/opacity/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+      
+    myMessage.setAddrPattern("/composition/video/effect1/opacity/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    myMessage.setAddrPattern("/composition/video/effect2/opacity/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+    
+    if (send)
+    oscP5.send(myBundle, myRemoteLocation); 
+  
+  myBundle.clear();
+    
+    }
+   
+ 
+  
+
+  
+  
+}
+
+// ==================================================
+// drawBlobsAndEdges()
+// ==================================================
+void drawBlobsAndEdges(boolean drawBlobs, boolean drawEdges, boolean blobInformation)
+{
+  noFill();
+  Blob b;
+  EdgeVertex eA, eB;
+  for (int n=0; n<theBlobDetection.getBlobNb(); n++)
+  {
+    b=theBlobDetection.getBlob(n);
+    if (b!=null)
+    {
+      // Edges
+      if (drawEdges)
+      {
+        strokeWeight(3);
+        stroke(0, 255, 0);
+        for (int m=0; m<b.getEdgeNb(); m++)
+        {
+          eA = b.getEdgeVertexA(m);
+          eB = b.getEdgeVertexB(m);
+          if (eA !=null && eB !=null)
+            line(
+              eA.x*width/2, eA.y*programHeight, 
+              eB.x*width/2, eB.y*programHeight
+              );
+        }
+      }
+
+      // Blobs
+      if (drawBlobs)
+      {
+        strokeWeight(1);
+        stroke(255, 0, 0);
+        rect(
+          b.xMin*width/2, b.yMin*programHeight, 
+          b.w*width/2, b.h*programHeight
+          );
+      }
+
+      //Information (Calculate and display the center of each blob)
+      if (blobInformation) {
+        pushStyle();
+        textSize(12);
+        textAlign(CENTER, CENTER);
+        fill(255);
+        text("#" + n + "\n (" + round(b.xMin*width/2 + b.w*width/4) +"," + round(b.yMin*programHeight + b.h*480/2) + ")" + "\n" + "area: " + (int)(b.w * width * b.h * programHeight), b.xMin*width/2 + b.w*width/4, b.yMin*480 + b.h*480/2);
+        popStyle();
+      }
+      
+    }
+    boolean send = false;
+    if (n == 0) { //First blob controls rotatey
+    
+    myMessage.setAddrPattern("/layer1/clip1/video/rotatey/values");
+    myMessage.add(map(b.xMin*width/2 + b.w*width/4,0,1000, 0, 1));
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+    } 
+    
+    if (n == 1) { //Second blob controls rotatex
+    
+    myMessage.setAddrPattern("/composition/video/effect3/opacity/values");
+    myMessage.add(map(b.xMin*width/2 + b.w*width/4,0,1000, 0, 1));
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+    }
+    
+    if (n == 2) { //Third blob controls shiftRGB opacity
+      
+    myMessage.setAddrPattern("/composition/video/effect1/opacity/values");
+    myMessage.add(map(b.xMin*width/2 + b.w*width/4,0,1000, 0, 1));
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+      
+      
+      
+    } 
+    
+    if (n == 3) { //Fourth blob controls DotScreen opacity
+    
+    myMessage.setAddrPattern("/composition/video/effect2/opacity/values");
+    myMessage.add(map(b.xMin*width/2 + b.w*width/4,0,1000, 0, 1));
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+    
+    }
+    
+    
+    if (send)
+    oscP5.send(myBundle, myRemoteLocation); 
+  
+  myBundle.clear();
+    
+  }
+  
+  
+  ////OSC
+  ////calculate x and y pos in the range 0.0 - 1.0
+  //float xpos = (float) mouseX / (float) width;
+  //float ypos = (float) mouseY / (float) height;
+  
+  ////boolean send = false;
+  
+  ////check if we need to send a rotate messages  
+  //if (mouseDown && mouseY < height-100) {
+  //  myMessage.setAddrPattern("/layer1/clip1/video/rotatey/values");
+  //  myMessage.add(xpos);
+  //  myBundle.add(myMessage);
+  //  myMessage.clear();
+  
+  //  myMessage.setAddrPattern("/layer1/clip1/video/rotatex/values");
+  //  myMessage.add(ypos);
+  //  myBundle.add(myMessage);
+  //  myMessage.clear();
+    
+  //  send = true;
+    
+  //}
+  
+  ////check if a scrubbing message should be send
+  //if ( mouseDown && mouseY > height-100 ) {
+  //  myMessage.setAddrPattern("/layer1/clip1/video/position/values");
+  //  myMessage.add(xpos);
+  //  myBundle.add(myMessage);
+  //  myMessage.clear();
+  //  send = true;
+  //}
+  
+  ///* send the bundle*/
+  //if (send)
+  //  oscP5.send(myBundle, myRemoteLocation); 
+  
+  //myBundle.clear();
+  
+}
+
+boolean newBlobDetectedEvent(Blob b) // Filtering blobs (discard "little" ones)
+{
+  int w = (int)(b.w * width);
+  int h = (int)(b.h * programHeight);
+  if (w >= minimumBlobSize || h >= minimumBlobSize) {
+    //if ((w * h) >= minimumBlobSize) {
+      
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// ==================================================
+// Super Fast Blur v1.1
+// by Mario Klingemann 
+// <http://incubator.quasimondo.com>
+// ==================================================
+void fastblur(PImage img, int radius)
+{
+  if (radius<1) {
+    return;
+  }
+  int w=img.width;
+  int h=img.height;
+  int wm=w-1;
+  int hm=h-1;
+  int wh=w*h;
+  int div=radius+radius+1;
+  int r[]=new int[wh];
+  int g[]=new int[wh];
+  int b[]=new int[wh];
+  int rsum, gsum, bsum, x, y, i, p, p1, p2, yp, yi, yw;
+  int vmin[] = new int[max(w, h)];
+  int vmax[] = new int[max(w, h)];
+  int[] pix=img.pixels;
+  int dv[]=new int[256*div];
+  for (i=0; i<256*div; i++) {
+    dv[i]=(i/div);
+  }
+
+  yw=yi=0;
+
+  for (y=0; y<h; y++) {
+    rsum=gsum=bsum=0;
+    for (i=-radius; i<=radius; i++) {
+      p=pix[yi+min(wm, max(i, 0))];
+      rsum+=(p & 0xff0000)>>16;
+      gsum+=(p & 0x00ff00)>>8;
+      bsum+= p & 0x0000ff;
+    }
+    for (x=0; x<w; x++) {
+
+      r[yi]=dv[rsum];
+      g[yi]=dv[gsum];
+      b[yi]=dv[bsum];
+
+      if (y==0) {
+        vmin[x]=min(x+radius+1, wm);
+        vmax[x]=max(x-radius, 0);
+      }
+      p1=pix[yw+vmin[x]];
+      p2=pix[yw+vmax[x]];
+
+      rsum+=((p1 & 0xff0000)-(p2 & 0xff0000))>>16;
+      gsum+=((p1 & 0x00ff00)-(p2 & 0x00ff00))>>8;
+      bsum+= (p1 & 0x0000ff)-(p2 & 0x0000ff);
+      yi++;
+    }
+    yw+=w;
+  }
+
+  for (x=0; x<w; x++) {
+    rsum=gsum=bsum=0;
+    yp=-radius*w;
+    for (i=-radius; i<=radius; i++) {
+      yi=max(0, yp)+x;
+      rsum+=r[yi];
+      gsum+=g[yi];
+      bsum+=b[yi];
+      yp+=w;
+    }
+    yi=x;
+    for (y=0; y<h; y++) {
+      pix[yi]=0xff000000 | (dv[rsum]<<16) | (dv[gsum]<<8) | dv[bsum];
+      if (x==0) {
+        vmin[y]=min(y+radius+1, hm)*w;
+        vmax[y]=max(y-radius, 0)*w;
+      }
+      p1=x+vmin[y];
+      p2=x+vmax[y];
+
+      rsum+=r[p1]-r[p2];
+      gsum+=g[p1]-g[p2];
+      bsum+=b[p1]-b[p2];
+
+      yi+=w;
+    }
+  }
+}
+
+
+public void reset() {
+  minDepth =  60;
+  maxDepth = 966;
+  positiveNegative = true;
+  showBlobs = true;
+  showEdges = true;
+  showInformation = true;
+  luminosityThreshold = 0.5;
+  minimumBlobSize = 100;
+  blurFactor = 30;
+  println("reset settings");
+}
+
+
+void exit() {
+ 
+  boolean send = false;
+   myMessage.setAddrPattern("/layer1/clip1/video/rotatey/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    myMessage.setAddrPattern("/layer1/clip1/video/scale/values");
+    myMessage.add(0.1);
+    myBundle.add(myMessage);
+    myMessage.clear();
+      
+    myMessage.setAddrPattern("/composition/video/effect1/opacity/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    myMessage.setAddrPattern("/composition/video/effect2/opacity/values");
+    myMessage.add(0.0);
+    myBundle.add(myMessage);
+    myMessage.clear();
+    
+    send = true;
+    
+    if (send)
+    oscP5.send(myBundle, myRemoteLocation); 
+  
+  myBundle.clear();
+  
+}
+
+void mousePressed() {
+ 
+  
+  
+}
+
+void mouseReleased() {
+  
+}
